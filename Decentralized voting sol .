@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract DecentralizedVoting {
+
+    struct Candidate {
+        uint id;
+        string name;
+        uint voteCount;
+    }
+
+    struct Voter {
+        bool isRegistered;
+        bool hasVoted;
+        uint votedCandidateId;
+    }
+
+    address public admin;
+    uint public candidatesCount;
+    mapping(uint => Candidate) public candidates;
+    mapping(address => Voter) public voters;
+
+    enum State { Created, Voting, Ended }
+    State public state;
+
+    event CandidateAdded(uint candidateId, string name);
+    event VoterRegistered(address voter);
+    event VoteCast(address voter, uint candidateId);
+    event VotingStarted();
+    event VotingEnded();
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only admin can call this.");
+        _;
+    }
+
+    modifier inState(State _state) {
+        require(state == _state, "Invalid state.");
+        _;
+    }
+
+    constructor() {
+        admin = msg.sender;
+        state = State.Created;
+    }
+
+    function addCandidate(string memory _name) public onlyAdmin inState(State.Created) {
+        candidatesCount++;
+        candidates[candidatesCount] = Candidate(candidatesCount, _name, 0);
+        emit CandidateAdded(candidatesCount, _name);
+    }
+
+    function registerVoter(address _voter) public onlyAdmin inState(State.Created) {
+        require(!voters[_voter].isRegistered, "Voter is already registered.");
+        voters[_voter] = Voter(true, false, 0);
+        emit VoterRegistered(_voter);
+    }
+
+    function startVoting() public onlyAdmin inState(State.Created) {
+        require(candidatesCount > 0, "No candidates added.");
+        state = State.Voting;
+        emit VotingStarted();
+    }
+
+    function vote(uint _candidateId) public inState(State.Voting) {
+        Voter storage sender = voters[msg.sender];
+        require(sender.isRegistered, "You are not registered to vote.");
+        require(!sender.hasVoted, "You have already voted.");
+        require(_candidateId > 0 && _candidateId <= candidatesCount, "Invalid candidate.");
+
+        sender.hasVoted = true;
+        sender.votedCandidateId = _candidateId;
+        candidates[_candidateId].voteCount++;
+
+        emit VoteCast(msg.sender, _candidateId);
+    }
+
+    function endVoting() public onlyAdmin inState(State.Voting) {
+        state = State.Ended;
+        emit VotingEnded();
+    }
+
+    function getWinner() public view inState(State.Ended) returns (string memory winnerName, uint winnerVoteCount) {
+        uint maxVotes = 0;
+        uint winnerId = 0;
+        for (uint i = 1; i <= candidatesCount; i++) {
+            if (candidates[i].voteCount > maxVotes) {
+                maxVotes = candidates[i].voteCount;
+                winnerId = i;
+            }
+        }
+        winnerName = candidates[winnerId].name;
+        winnerVoteCount = candidates[winnerId].voteCount;
+    }
+
+    // Utility functions
+    function getCandidate(uint _candidateId) public view returns (string memory name, uint voteCount) {
+        require(_candidateId > 0 && _candidateId <= candidatesCount, "Invalid candidate.");
+        Candidate storage candidate = candidates[_candidateId];
+        return (candidate.name, candidate.voteCount);
+    }
+
+    function isVoterRegistered(address _voter) public view returns (bool) {
+        return voters[_voter].isRegistered;
+    }
+
+    function hasVoted(address _voter) public view returns (bool) {
+        return voters[_voter].hasVoted;
+    }
+}
