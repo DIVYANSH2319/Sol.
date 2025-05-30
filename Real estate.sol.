@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract VirtualRealEstateMarketplace is ERC721, Ownable {
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
+
+    struct Parcel {
+        uint256 tokenId;
+        string name;
+        string description;
+        uint256 price;
+        bool forSale;
+    }
+
+    mapping(uint256 => Parcel) public parcels;
+
+    event ParcelMinted(address indexed owner, uint256 tokenId, string name);
+    event ParcelListed(uint256 tokenId, uint256 price);
+    event ParcelUnlisted(uint256 tokenId);
+    event ParcelSold(uint256 tokenId, address indexed from, address indexed to, uint256 price);
+
+    constructor() ERC721("VirtualRealEstate", "VRE") {}
+
+    /// @notice Mint a new land parcel
+    function mintParcel(string memory _name, string memory _description, uint256 _price) public onlyOwner returns (uint256) {
+        _tokenIds.increment();
+        uint256 newParcelId = _tokenIds.current();
+
+        _mint(msg.sender, newParcelId);
+        parcels[newParcelId] = Parcel(newParcelId, _name, _description, _price, false);
+
+        emit ParcelMinted(msg.sender, newParcelId, _name);
+        return newParcelId;
+    }
+
+    /// @notice Set a parcel for sale
+    function listParcelForSale(uint256 _tokenId, uint256 _price) public {
+        require(ownerOf(_tokenId) == msg.sender, "Not the parcel owner");
+        parcels[_tokenId].forSale = true;
+        parcels[_tokenId].price = _price;
+
+        emit ParcelListed(_tokenId, _price);
+    }
+
+    /// @notice Remove a parcel from sale
+    function unlistParcel(uint256 _tokenId) public {
+        require(ownerOf(_tokenId) == msg.sender, "Not the parcel owner");
+        parcels[_tokenId].forSale = false;
+
+        emit ParcelUnlisted(_tokenId);
+    }
+
+    /// @notice Buy a parcel
+    function buyParcel(uint256 _tokenId) public payable {
+        Parcel storage parcel = parcels[_tokenId];
+        address seller = ownerOf(_tokenId);
+
+        require(parcel.forSale, "Parcel not for sale");
+        require(msg.value >= parcel.price, "Insufficient payment");
+        require(seller != msg.sender, "You already own this parcel");
+
+        parcel.forSale = false;
+
+        // Transfer ownership and payment
+        _transfer(seller, msg.sender, _tokenId);
+        payable(seller).transfer(parcel.price);
+
+        // Refund excess ETH
+        if (msg.value > parcel.price) {
+            payable(msg.sender).transfer(msg.value - parcel.price);
+        }
+
+        emit ParcelSold(_tokenId, seller, msg.sender, parcel.price);
+    }
+
+    /// @notice Get parcel metadata
+    function getParcel(uint256 _tokenId) public view returns (
+        uint256 tokenId,
+        string memory name,
+        string memory description,
+        uint256 price,
+        bool forSale,
+        address owner
+    ) {
+        Parcel memory p = parcels[_tokenId];
+        return (p.tokenId, p.name, p.description, p.price, p.forSale, ownerOf(_tokenId));
+    }
+}
