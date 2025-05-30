@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract SimpleVoting {
+    address public admin;
+    bool public votingEnded;
+
+    struct Candidate {
+        string name;
+        uint voteCount;
+    }
+
+    Candidate[2] public candidates;
+    mapping(address => bool) public hasVoted;
+
+    constructor(string memory name1, string memory name2) {
+        admin = msg.sender;
+        candidates[0] = Candidate(name1, 0);
+        candidates[1] = Candidate(name2, 0);
+    }
+
+    function vote(uint candidateIndex) external {
+        require(!votingEnded, "Voting has ended");
+        require(!hasVoted[msg.sender], "You already voted");
+        require(candidateIndex < 2, "Invalid candidate");
+
+        candidates[candidateIndex].voteCount += 1;
+        hasVoted[msg.sender] = true;
+    }
+
+    function endVoting() external {
+        require(msg.sender == admin, "Only admin can end voting");
+        votingEnded = true;
+    }
+
+    function getWinner() external view returns (string memory winnerName) {
+        require(votingEnded, "Voting not ended yet");
+
+        if (candidates[0].voteCount >= candidates[1].voteCount) {
+            return candidates[0].name;
+        } else {
+            return candidates[1].name;
+        }
+    }
+
+    function getVotes() external view returns (uint candidate1Votes, uint candidate2Votes) {
+        return (candidates[0].voteCount, candidates[1].voteCount);
+    }
+}
