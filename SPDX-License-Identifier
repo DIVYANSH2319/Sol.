@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract VirtualRealEstate is ERC721, Ownable {
+    uint256 public nextParcelId = 1;
+
+    struct Parcel {
+        uint256 id;
+        string name;
+        uint256 price;
+        bool forSale;
+    }
+
+    mapping(uint256 => Parcel) public parcels;
+
+    constructor() ERC721("VirtualRealEstate", "VRE") {}
+
+    // Mint a new parcel
+    function mintParcel(string memory _name, uint256 _price) external onlyOwner {
+        uint256 parcelId = nextParcelId++;
+        parcels[parcelId] = Parcel(parcelId, _name, _price, true);
+        _mint(msg.sender, parcelId);
+    }
+
+    // List parcel for sale
+    function setForSale(uint256 _parcelId, uint256 _price) external {
+        require(ownerOf(_parcelId) == msg.sender, "Not the parcel owner");
+        parcels[_parcelId].forSale = true;
+        parcels[_parcelId].price = _price;
+    }
+
+    // Buy parcel
+    function buyParcel(uint256 _parcelId) external payable {
+        Parcel storage parcel = parcels[_parcelId];
+        address seller = ownerOf(_parcelId);
+
+        require(parcel.forSale, "Parcel not for sale");
+        require(msg.value >= parcel.price, "Insufficient payment");
+        require(seller != msg.sender, "Cannot buy your own parcel");
+
+        parcel.forSale = false;
+
+        // Transfer the parcel
+        _transfer(seller, msg.sender, _parcelId);
+
+        // Pay the seller
+        payable(seller).transfer(parcel.price);
+
+        // Refund excess Ether if any
+        if (msg.value > parcel.price) {
+            payable(msg.sender).transfer(msg.value - parcel.price);
+        }
+    }
+
+    // Get parcel info
+    function getParcel(uint256 _parcelId) external view returns (Parcel memory) {
+        return parcels[_parcelId];
+    }
