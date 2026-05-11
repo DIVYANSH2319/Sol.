@@ -32,7 +32,7 @@ contract VirtualRealEstate is ERC721, Ownable {
         parcels[_parcelId].price = _price;
     }
 
-    // Buy parcel
+  // Buy parcel
     function buyParcel(uint256 _parcelId) external payable {
         Parcel storage parcel = parcels[_parcelId];
         address seller = ownerOf(_parcelId);
