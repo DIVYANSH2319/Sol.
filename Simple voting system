@@ -6,8 +6,8 @@ contract SimpleVoting {
     bool public votingEnded;
 
     struct Candidate {
-        string name;
-        uint voteCount;
+         string name;
+         uint voteCount;
     }
 
     Candidate[2] public candidates;
